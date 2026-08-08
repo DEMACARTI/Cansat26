@@ -1,18 +1,18 @@
 :root {
-  --bg-base: #0A0C0F;
-  --bg-surface: #0F1318;
-  --bg-elevated: #151B22;
-  --bg-border: #1E2530;
-  --cyan: #45F3FF;
-  --cyan-dim: rgba(69, 243, 255, 0.15);
+  --bg-base: #F5F1E8;
+  --bg-surface: #EAE5D9;
+  --bg-elevated: #DDD6C8;
+  --bg-border: #C9BBA8;
+  --cyan: #D4AF37;
+  --cyan-dim: rgba(212, 175, 55, 0.15);
   --green: #22C55E;
   --amber: #F59E0B;
   --red: #EF4444;
   --purple: #A78BFA;
   --blue: #60A5FA;
-  --text-primary: #E2E8F0;
-  --text-secondary: #94A3B8;
-  --text-muted: #4A5568;
+  --text-primary: #3C2817;
+  --text-secondary: #8B7355;
+  --text-muted: #B8A896;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
   --font-ui: 'Inter', system-ui, sans-serif;
   --radius-sm: 3px;

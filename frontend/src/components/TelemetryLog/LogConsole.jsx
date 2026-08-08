@@ -29,6 +29,19 @@ export default function LogConsole() {
         <button type="button" onClick={() => setPaused((value) => !value)}>{paused ? 'RESUME SCROLL' : 'PAUSE SCROLL'}</button>
       </div>
       <div className="console" ref={scrollRef}>
+        <div className="console__line console__info">
+          <span className="console__info-title">● FLIGHT CSV</span>
+          <span className="console__info-text">Flight_2026-IN-SPACe-CAN-7USAT-066.csv — One row per second. 16 mandatory fields: team ID, mission time, packet count, altitude, pressure, temperature, bus voltage, GNSS time/lat/lon/alt/sats, accelerometer, gyro spin rate, flight-software state, then optional payload columns.</span>
+        </div>
+        <div className="console__line console__info">
+          <span className="console__info-title">● COMMAND LOG</span>
+          <span className="console__info-text">Every transmission with timestamp, raw bytes sent, and acknowledgement received or timeout marker. Last command and ACK status pinned on screen.</span>
+        </div>
+        <div className="console__line console__info">
+          <span className="console__info-title">● QUARANTINE LOG</span>
+          <span className="console__info-text">Malformed or partial frames written verbatim rather than discarded. Diagnose link problems from what actually arrived.</span>
+        </div>
+        <div className="console__divider"></div>
         {lines.map(({ packet, text }) => (
           <div key={packet.packetId} className="console__line">
             <span className="console__time">[{formatShortClock(packet.missionElapsedMs)}]</span>{' '}
