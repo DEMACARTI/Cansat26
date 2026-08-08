@@ -357,6 +357,226 @@ input {
   margin: 8px 0;
 }
 
+.telemetry-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+}
+
+.telemetry-tabs__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-border);
+  gap: 12px;
+}
+
+.telemetry-tabs__nav {
+  display: flex;
+  gap: 2px;
+}
+
+.telemetry-tabs__tab {
+  padding: 6px 12px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--bg-border);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.telemetry-tabs__tab:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.telemetry-tabs__tab--active {
+  background: var(--bg-elevated);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.telemetry-tabs__controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.telemetry-tabs__cadence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+}
+
+.telemetry-tabs__heartbeat {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-stable 1s ease-in-out infinite;
+}
+
+.telemetry-tabs__heartbeat--stable {
+  animation: pulse-stable 1s ease-in-out infinite;
+}
+
+.telemetry-tabs__heartbeat--unstable {
+  animation: pulse-unstable 0.5s ease-in-out infinite;
+  background: var(--amber);
+}
+
+@keyframes pulse-stable {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes pulse-unstable {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.telemetry-tabs__cadence-text {
+  color: var(--text-primary);
+}
+
+.telemetry-tabs__scroll-btn {
+  padding: 4px 8px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  border: 1px solid var(--bg-border);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.telemetry-tabs__scroll-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.telemetry-tabs__pinned {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--bg-border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.telemetry-tabs__pinned--flight {
+  border-left: 3px solid var(--green);
+}
+
+.telemetry-tabs__pinned--command {
+  border-left: 3px solid var(--cyan);
+}
+
+.telemetry-tabs__pinned--quarantine {
+  border-left: 3px solid var(--amber);
+}
+
+.telemetry-tabs__pinned-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.telemetry-tabs__pinned-content {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+}
+
+.telemetry-tabs__tx {
+  color: var(--cyan);
+}
+
+.telemetry-tabs__ack {
+  color: var(--green);
+}
+
+.telemetry-tabs__content {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.telemetry-tabs__content::-webkit-scrollbar {
+  display: none;
+}
+
+.telemetry-tabs__content--flight {
+  background: #000000;
+}
+
+.telemetry-tabs__content--command {
+  background: #0a0f1a;
+}
+
+.telemetry-tabs__content--quarantine {
+  background: #1a1005;
+}
+
+.console__line--flight {
+  color: var(--green);
+  margin-bottom: 4px;
+}
+
+.console__line--command {
+  margin-bottom: 4px;
+}
+
+.console__cmd-tx {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.console__cmd-ack {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.console__cmd-bytes {
+  color: var(--text-secondary);
+}
+
+.console__line--quarantine {
+  margin-bottom: 4px;
+}
+
+.console__quarantine-label {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.console__quarantine-data {
+  color: var(--red);
+}
+
 .map-shell {
   height: 220px;
   border: 1px solid var(--bg-border);
