@@ -5,12 +5,12 @@
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "electron": "electron .",
-    "electron:dev": "concurrently \"vite\" \"electron .\"",
-    "electron:build": "vite build && electron-builder",
+    "dev": "node node_modules/vite/bin/vite.js",
+    "build": "node node_modules/vite/bin/vite.js build",
+    "preview": "node node_modules/vite/bin/vite.js preview",
+    "electron": "node node_modules/electron/cli.js .",
+    "electron:dev": "node node_modules/concurrently/dist/bin/concurrently.js \"node node_modules/vite/bin/vite.js\" \"node node_modules/electron/cli.js .\"",
+    "electron:build": "node node_modules/vite/bin/vite.js build && node node_modules/electron-builder/out/cli/cli.js",
     "electron:pack": "electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "dist:dir": "npm run build && electron-builder --dir"

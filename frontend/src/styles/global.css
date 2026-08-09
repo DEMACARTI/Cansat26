@@ -577,6 +577,27 @@ input {
   color: var(--red);
 }
 
+/* ── Mock telemetry feed: [EVT] line styling ────────────────────────────── */
+.mock-rx-line {
+  margin-bottom: 3px;
+}
+
+.mock-evt-line {
+  margin-bottom: 3px;
+  margin-top: 2px;
+}
+
+.console__evt-prefix {
+  color: var(--amber);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.console__evt-body {
+  color: var(--amber);
+  opacity: 0.85;
+}
+
 .map-shell {
   height: 220px;
   border: 1px solid var(--bg-border);

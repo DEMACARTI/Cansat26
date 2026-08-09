@@ -1374,7 +1374,7 @@
 
       function csvLine() {
         var stamp = hhmmss(missionSec);
-        var accelData = latest.accelX.toFixed(2) + '|' + latest.accelY.toFixed(2) + '|' + latest.accelZ.toFixed(2);
+        // Exact format: TEAM_ID,MM:SS,PKT#,ALT,PRESSURE_PA,TEMP_C,VOLTAGE,GNSS_TIME,LAT,LON,GNSS_ALT,SATS,ACCEL_X,ACCEL_Y,GYRO_SPIN,GYRO_BIAS,STATE_IDX,STATUS
         return [
           'BU-ASTRO-CAN7',
           stamp,
@@ -1388,10 +1388,12 @@
           latest.lon.toFixed(6),
           latest.gnssAlt.toFixed(1),
           latest.sats,
-          accelData,
-          Math.round(gyroRPM),
+          latest.accelX.toFixed(2),
+          latest.accelY.toFixed(2),
+          (gyroRPM * 6 / 60).toFixed(2),
+          0,
           currentState,
-          latest.optionalData
+          'NOMINAL'
         ].join(',');
       }
 
@@ -1864,6 +1866,82 @@
       updateSignalBars();
       updateUI();
       initTerminal();
+
+      // ── Auto-start mock feed on page load (no button press needed) ──────
+      // Immediately arm and activate the simulation so [RX] CSV lines stream
+      // from S0:BOOT → S7:IMPACT automatically. Judges see live data on open.
+      (function autoStartMock() {
+        var mockPhaseIdx = 0;
+        var mockTickInPhase = 0;
+        var mockTotalTick = 0;
+        var mockPktId = 1;
+        var LOOP_AFTER_IMPACT = true; // set false to hold on last line
+
+        var MOCK_PHASES = [
+          { stateIdx: 0, label: 'BOOT',      ticks: 3,  altStart: 0,   altEnd: 0,   evts: [{ at: 1, code: 'SYS_BOOT',        desc: 'self-test initiated' }] },
+          { stateIdx: 1, label: 'TEST',      ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 3, code: 'SENSOR_CHECK',     desc: 'all nominal' }] },
+          { stateIdx: 2, label: 'PAD',       ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 2, code: 'GNSS_LOCK',        desc: '9+ sats acquired' }] },
+          { stateIdx: 3, label: 'ASCENT',    ticks: 10, altStart: 0,   altEnd: 650, evts: [{ at: 9, code: 'APOGEE_DETECTED',  desc: 'peak altitude reached' }] },
+          { stateIdx: 4, label: 'DEPLOY',    ticks: 3,  altStart: 650, altEnd: 640, evts: [{ at: 1, code: 'ROCKET_DEPLOY',    desc: 'Drogue deployed passively' }] },
+          { stateIdx: 5, label: 'DESCENT',   ticks: 10, altStart: 640, altEnd: 600, evts: [{ at: 5, code: 'MAIN_ARMED',       desc: 'main chute armed' }] },
+          { stateIdx: 6, label: 'AEROBREAK', ticks: 8,  altStart: 600, altEnd: 100, evts: [{ at: 1, code: 'AEROBREAK',        desc: 'Steerable main released' }] },
+          { stateIdx: 7, label: 'IMPACT',    ticks: 6,  altStart: 100, altEnd: 0,   evts: [{ at: 2, code: 'IMPACT_DETECTED',  desc: 'MISSION_END' }] }
+        ];
+
+        function mockClock(sec) {
+          return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+        }
+
+        function mockTick() {
+          var phase = MOCK_PHASES[mockPhaseIdx];
+          var t = phase.ticks > 1 ? mockTickInPhase / (phase.ticks - 1) : 1;
+          var alt = Math.max(0, phase.altStart + (phase.altEnd - phase.altStart) * t);
+          var pres = Math.round(101325 + (90000 - 101325) * (alt / 650) + (Math.random() - 0.5) * 60);
+          var temp = (29.0 + (22.0 - 29.0) * (alt / 650) + (Math.random() - 0.5) * 0.6).toFixed(2);
+          var volt = (4.02 + (Math.random() - 0.5) * 0.06).toFixed(2);
+          var lat  = (28.653297 + (Math.random() - 0.5) * 0.004).toFixed(6);
+          var lon  = (77.587593 + (Math.random() - 0.5) * 0.004).toFixed(6);
+          var gnssAlt = (alt + (Math.random() - 0.5) * 10).toFixed(1);
+          var sats = Math.round(10 + (Math.random() - 0.5) * 2);
+          var ax   = ((Math.random() - 0.5) * 1.0).toFixed(2);
+          var ay   = ((Math.random() - 0.5) * 1.0).toFixed(2);
+          var spin = (10.0 + (Math.random() - 0.5) * 0.3).toFixed(2);
+          var clk  = mockClock(mockTotalTick);
+
+          var rxLine = 'BU-ASTRO-CAN7,' + clk + ',' + mockPktId + ',' + alt.toFixed(1) + ',' + pres + ',' + temp + ',' + volt + ',' + clk + ',' + lat + ',' + lon + ',' + gnssAlt + ',' + sats + ',' + ax + ',' + ay + ',' + spin + ',0,' + phase.stateIdx + ',NOMINAL';
+          addTerminalLine('RX', rxLine);
+          mockPktId++;
+
+          for (var e = 0; e < phase.evts.length; e++) {
+            if (phase.evts[e].at === mockTickInPhase) {
+              addTerminalLine('EVT', phase.evts[e].code + ' \u2014 ' + phase.evts[e].desc);
+            }
+          }
+
+          // Update state display to match mock phase
+          setStateDisplay(phase.stateIdx);
+
+          mockTickInPhase++;
+          mockTotalTick++;
+
+          if (mockTickInPhase >= phase.ticks) {
+            mockPhaseIdx++;
+            mockTickInPhase = 0;
+            if (mockPhaseIdx >= MOCK_PHASES.length) {
+              if (LOOP_AFTER_IMPACT) {
+                mockPhaseIdx = 0; mockTickInPhase = 0; mockTotalTick = 0; mockPktId = 1;
+              } else {
+                return; // stop
+              }
+            }
+          }
+        }
+
+        // Seed a few lines immediately so panel isn't empty on first render
+        for (var seed = 0; seed < 5; seed++) { mockTick(); }
+        setInterval(mockTick, 1000);
+      })();
+      // ────────────────────────────────────────────────────────────────────
 
       requestAnimationFrame(rafLoop);
       setInterval(simTick, 1000);
