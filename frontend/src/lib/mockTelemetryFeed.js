@@ -25,6 +25,18 @@ const MAX_LINES = 200; // capped in-memory buffer size
 const BASE_LAT  = 28.653297;
 const BASE_LON  = 77.587593;
 
+// ─── Prelaunch Sequence ──────────────────────────────────────────────────────
+const PRELAUNCH_SEQUENCE = [
+  { atTick: 0, lines: ['[TX] CONNECT', '[ACK] LINK_UP — PAN 0x103C, CH 26 confirmed'] },
+  { atTick: 1, lines: ['[TX] [T-90] SET_WAYPOINT 28.653297,77.587593', '[ACK] [T-90] SET_WAYPOINT — coordinates echoed: 28.653297,77.587593'] },
+  { atTick: 2, lines: ['[TX] [T-60] HEATER_ON', '[ACK] [T-60] HEATER_ON — MQ/MiCS sensors pre-warming'] },
+  { atTick: 3, lines: ['[TX] [T-60] CAL', '[ACK] [T-60] CAL_OK — baro altitude zeroed, gyro bias stored to NVS'] },
+  { atTick: 4, lines: ['[TX] [T-30] ARM', '[ACK] [T-30] ARM_OK — telemetry chain enabled'] },
+  { atTick: 5, lines: ['[TX] [T-30] START_TX', '[EVT] [T-30] TX_START — 1 Hz downlink began (Rule 34)'] },
+  { atTick: 6, lines: ['[EVT] [T-30] LINK_VERIFY — 1.0 Hz cadence, gap-free packet count, RSSI nominal'] },
+  { atTick: 7, lines: ['[EVT] [T-0] LIFTOFF'] }
+];
+
 // ─── Phase Definitions ───────────────────────────────────────────────────────
 // Each phase: { label, stateIdx, durationTicks, altStart, altEnd, events[] }
 // events: [{ atTick, code, desc }]
@@ -163,6 +175,8 @@ function buildEvtLine(code, desc) {
  */
 export function createMockFeedState() {
   return {
+    isPrelaunch: true,
+    prelaunchTick: 0,
     phaseIdx:    0,
     tickInPhase: 0,
     totalTick:   0,
@@ -181,6 +195,20 @@ export function createMockFeedState() {
  */
 export function nextLine(state) {
   if (state.done) return [];
+
+  if (state.isPrelaunch) {
+    const output = [];
+    const step = PRELAUNCH_SEQUENCE.find(s => s.atTick === state.prelaunchTick);
+    if (step) {
+      output.push(...step.lines);
+    }
+    state.prelaunchTick++;
+    const maxTick = Math.max(...PRELAUNCH_SEQUENCE.map(s => s.atTick));
+    if (state.prelaunchTick > maxTick) {
+       state.isPrelaunch = false;
+    }
+    return output;
+  }
 
   const phase = PHASES[state.phaseIdx];
   const tick  = state.tickInPhase;
@@ -228,44 +256,38 @@ export function nextLine(state) {
 /**
  * useMockTelemetryFeed(enabled)
  * React hook — calls nextLine() every ~1000 ms and returns the capped line
- * buffer (newest at the bottom).
+ * buffer (newest at the bottom). Now supports an idle start state.
  *
  * @param {boolean} enabled - pass false to disable (e.g. real data is present)
- * @returns {string[]} lines
+ * @returns {object} { lines, start, isRunning }
  */
 export function useMockTelemetryFeed(enabled = true) {
-  // Lazy initial seed so the panel isn't empty on first render
-  const [lines, setLines] = useState(() => {
-    const seed    = createMockFeedState();
-    const initial = [];
-    for (let i = 0; i < 5; i++) {
-      initial.push(...nextLine(seed));
-    }
-    return initial;
-  });
-
-  // Persistent generator state (survives re-renders)
+  const [lines, setLines] = useState(['[SYS] Ground station idle — press CONNECT to begin']);
+  const [isRunning, setIsRunning] = useState(false);
   const stateRef = useRef(null);
-  if (stateRef.current === null) {
+
+  const start = () => {
+    setIsRunning(true);
+    setLines([]);
     stateRef.current = createMockFeedState();
-    // Fast-forward to match the 5 seed ticks already rendered
-    for (let i = 0; i < 5; i++) nextLine(stateRef.current);
-  }
+  };
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isRunning) return;
 
     const id = setInterval(() => {
       const newLines = nextLine(stateRef.current);
-      if (newLines.length === 0) {
+      if (newLines.length === 0 && stateRef.current.done) {
         clearInterval(id);
         return;
       }
-      setLines((prev) => [...prev, ...newLines].slice(-MAX_LINES));
+      if (newLines.length > 0) {
+        setLines((prev) => [...prev, ...newLines].slice(-MAX_LINES));
+      }
     }, 1000);
 
     return () => clearInterval(id);
-  }, [enabled]);
+  }, [enabled, isRunning]);
 
-  return lines;
+  return { lines, start, isRunning };
 }

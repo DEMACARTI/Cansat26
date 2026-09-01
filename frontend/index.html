@@ -642,7 +642,7 @@
 
       <div class="mono-10" style="display:flex; align-items:center; gap:8px; color: var(--text2);">
         <span>PKT: <span id="pktTop" style="color: var(--cyan);">0</span></span>
-        <span style="color: var(--cyan);">TEAM: BU-ASTRO-CAN7</span>
+        <span style="color: var(--cyan);">TEAM: 2026-IN-SPACe-CAN-7USAT-066</span>
       </div>
 
       <div class="vsep"></div>
@@ -798,7 +798,10 @@
         </section>
 
         <section class="section">
-          <div class="sec-title">TELEMETRY TERMINAL · 1 Hz CSV</div>
+          <div class="sec-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>TELEMETRY TERMINAL · 1 Hz CSV</span>
+            <button id="btnConnectMock" style="background: var(--bg2); color: var(--cyan2); border: 1px solid var(--cyan2); padding: 2px 6px; font-family: var(--font-mono); font-size: 11px; cursor: pointer;">▶ CONNECT</button>
+          </div>
           <div id="terminal" class="terminal"></div>
         </section>
       </section>
@@ -1127,7 +1130,9 @@
         head.textContent = '[' + tag + '] ';
         if (tag === 'RX' || tag === 'GS') head.style.color = cssVar('--cyan2');
         else if (tag === 'EVT') head.style.color = cssVar('--amber');
-        else if (tag === 'CMD') head.style.color = cssVar('--red');
+        else if (tag === 'CMD' || tag === 'TX') head.style.color = cssVar('--cyan2');
+        else if (tag === 'ACK') head.style.color = cssVar('--green');
+        else if (tag === 'SYS') head.style.color = cssVar('--cyan2');
         else head.style.color = cssVar('--text0');
 
         line.appendChild(head);
@@ -1376,7 +1381,7 @@
         var stamp = hhmmss(missionSec);
         // Exact format: TEAM_ID,MM:SS,PKT#,ALT,PRESSURE_PA,TEMP_C,VOLTAGE,GNSS_TIME,LAT,LON,GNSS_ALT,SATS,ACCEL_X,ACCEL_Y,GYRO_SPIN,GYRO_BIAS,STATE_IDX,STATUS
         return [
-          'BU-ASTRO-CAN7',
+          '2026-IN-SPACe-CAN-7USAT-066',
           stamp,
           pktCount,
           altitude.toFixed(1),
@@ -1867,80 +1872,121 @@
       updateUI();
       initTerminal();
 
-      // ── Auto-start mock feed on page load (no button press needed) ──────
-      // Immediately arm and activate the simulation so [RX] CSV lines stream
-      // from S0:BOOT → S7:IMPACT automatically. Judges see live data on open.
-      (function autoStartMock() {
-        var mockPhaseIdx = 0;
-        var mockTickInPhase = 0;
-        var mockTotalTick = 0;
-        var mockPktId = 1;
-        var LOOP_AFTER_IMPACT = true; // set false to hold on last line
+      // ── Mock feed logic ──────
+      var mockPhaseIdx = 0;
+      var mockTickInPhase = 0;
+      var mockTotalTick = 0;
+      var mockPktId = 1;
+      var LOOP_AFTER_IMPACT = true; // set false to hold on last line
+      var isMockRunning = false;
+      var mockInterval = null;
+      var inPrelaunch = true;
+      var prelaunchTick = 1;
 
-        var MOCK_PHASES = [
-          { stateIdx: 0, label: 'BOOT',      ticks: 3,  altStart: 0,   altEnd: 0,   evts: [{ at: 1, code: 'SYS_BOOT',        desc: 'self-test initiated' }] },
-          { stateIdx: 1, label: 'TEST',      ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 3, code: 'SENSOR_CHECK',     desc: 'all nominal' }] },
-          { stateIdx: 2, label: 'PAD',       ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 2, code: 'GNSS_LOCK',        desc: '9+ sats acquired' }] },
-          { stateIdx: 3, label: 'ASCENT',    ticks: 10, altStart: 0,   altEnd: 650, evts: [{ at: 9, code: 'APOGEE_DETECTED',  desc: 'peak altitude reached' }] },
-          { stateIdx: 4, label: 'DEPLOY',    ticks: 3,  altStart: 650, altEnd: 640, evts: [{ at: 1, code: 'ROCKET_DEPLOY',    desc: 'Drogue deployed passively' }] },
-          { stateIdx: 5, label: 'DESCENT',   ticks: 10, altStart: 640, altEnd: 600, evts: [{ at: 5, code: 'MAIN_ARMED',       desc: 'main chute armed' }] },
-          { stateIdx: 6, label: 'AEROBREAK', ticks: 8,  altStart: 600, altEnd: 100, evts: [{ at: 1, code: 'AEROBREAK',        desc: 'Steerable main released' }] },
-          { stateIdx: 7, label: 'IMPACT',    ticks: 6,  altStart: 100, altEnd: 0,   evts: [{ at: 2, code: 'IMPACT_DETECTED',  desc: 'MISSION_END' }] }
-        ];
+      var BASE_LAT = '28.653297';
+      var BASE_LON = '77.587593';
 
-        function mockClock(sec) {
-          return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+      var PRELAUNCH_SEQUENCE = [
+        { tick: 1, tag: 'TX',  msg: '[T-90] SET_WAYPOINT ' + BASE_LAT + ' ' + BASE_LON },
+        { tick: 2, tag: 'ACK', msg: '[T-89] WAYPOINT_SET OK' },
+        { tick: 3, tag: 'TX',  msg: '[T-80] ENABLE_HEATERS' },
+        { tick: 4, tag: 'ACK', msg: '[T-79] HEATERS_ON (28.4 C)' },
+        { tick: 5, tag: 'TX',  msg: '[T-30] CALIBRATE_IMU' },
+        { tick: 6, tag: 'ACK', msg: '[T-29] IMU_CAL OK' },
+        { tick: 7, tag: 'TX',  msg: '[T-30] ARM' },
+        { tick: 8, tag: 'ACK', msg: '[T-30] ARM_OK — telemetry chain enabled' },
+        { tick: 9, tag: 'TX',  msg: '[T-30] START_TX' },
+        { tick: 10, tag: 'EVT', msg: '[T-30] TX_START — 1 Hz downlink began (Rule 34)' },
+        { tick: 11, tag: 'EVT', msg: '[T-29] LINK_VERIFY — 1.0 Hz cadence, gap-free packet count, RSSI nominal' },
+        { tick: 12, tag: 'SYS', msg: '[T-10] ALL SYSTEMS GO — AWAITING LAUNCH' },
+        { tick: 13, tag: 'SYS', msg: '[T-0]  LIFTOFF DETECTED' }
+      ];
+
+      var MOCK_PHASES = [
+        { stateIdx: 0, label: 'BOOT',      ticks: 3,  altStart: 0,   altEnd: 0,   evts: [{ at: 1, code: 'SYS_BOOT',        desc: 'self-test initiated' }] },
+        { stateIdx: 1, label: 'TEST',      ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 3, code: 'SENSOR_CHECK',     desc: 'all nominal' }] },
+        { stateIdx: 2, label: 'PAD',       ticks: 5,  altStart: 0,   altEnd: 0,   evts: [{ at: 2, code: 'GNSS_LOCK',        desc: '9+ sats acquired' }] },
+        { stateIdx: 3, label: 'ASCENT',    ticks: 10, altStart: 0,   altEnd: 650, evts: [{ at: 9, code: 'APOGEE_DETECTED',  desc: 'peak altitude reached' }] },
+        { stateIdx: 4, label: 'DEPLOY',    ticks: 3,  altStart: 650, altEnd: 640, evts: [{ at: 1, code: 'ROCKET_DEPLOY',    desc: 'Drogue deployed passively' }] },
+        { stateIdx: 5, label: 'DESCENT',   ticks: 10, altStart: 640, altEnd: 600, evts: [{ at: 5, code: 'MAIN_ARMED',       desc: 'main chute armed' }] },
+        { stateIdx: 6, label: 'AEROBREAK', ticks: 8,  altStart: 600, altEnd: 100, evts: [{ at: 1, code: 'AEROBREAK',        desc: 'Steerable main released' }] },
+        { stateIdx: 7, label: 'IMPACT',    ticks: 6,  altStart: 100, altEnd: 0,   evts: [{ at: 2, code: 'IMPACT_DETECTED',  desc: 'MISSION_END' }] }
+      ];
+
+      function mockClock(sec) {
+        var h = String(Math.floor(sec / 3600)).padStart(2, '0');
+        var m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+        var s = String(sec % 60).padStart(2, '0');
+        return h + ':' + m + ':' + s;
+      }
+
+      function mockTick() {
+        if (inPrelaunch) {
+          var evt = PRELAUNCH_SEQUENCE.find(function(e) { return e.tick === prelaunchTick; });
+          if (evt) {
+            addTerminalLine(evt.tag, evt.msg);
+          }
+          prelaunchTick++;
+          if (prelaunchTick > 13) {
+            inPrelaunch = false;
+          }
+          return;
         }
 
-        function mockTick() {
-          var phase = MOCK_PHASES[mockPhaseIdx];
-          var t = phase.ticks > 1 ? mockTickInPhase / (phase.ticks - 1) : 1;
-          var alt = Math.max(0, phase.altStart + (phase.altEnd - phase.altStart) * t);
-          var pres = Math.round(101325 + (90000 - 101325) * (alt / 650) + (Math.random() - 0.5) * 60);
-          var temp = (29.0 + (22.0 - 29.0) * (alt / 650) + (Math.random() - 0.5) * 0.6).toFixed(2);
-          var volt = (4.02 + (Math.random() - 0.5) * 0.06).toFixed(2);
-          var lat  = (28.653297 + (Math.random() - 0.5) * 0.004).toFixed(6);
-          var lon  = (77.587593 + (Math.random() - 0.5) * 0.004).toFixed(6);
-          var gnssAlt = (alt + (Math.random() - 0.5) * 10).toFixed(1);
-          var sats = Math.round(10 + (Math.random() - 0.5) * 2);
-          var ax   = ((Math.random() - 0.5) * 1.0).toFixed(2);
-          var ay   = ((Math.random() - 0.5) * 1.0).toFixed(2);
-          var spin = (10.0 + (Math.random() - 0.5) * 0.3).toFixed(2);
-          var clk  = mockClock(mockTotalTick);
+        var phase = MOCK_PHASES[mockPhaseIdx];
+        var t = phase.ticks > 1 ? mockTickInPhase / (phase.ticks - 1) : 1;
+        var alt = Math.max(0, phase.altStart + (phase.altEnd - phase.altStart) * t);
+        var pres = Math.round(101325 + (90000 - 101325) * (alt / 650) + (Math.random() - 0.5) * 60);
+        var temp = (29.0 + (22.0 - 29.0) * (alt / 650) + (Math.random() - 0.5) * 0.6).toFixed(2);
+        var volt = (4.02 + (Math.random() - 0.5) * 0.06).toFixed(2);
+        var lat  = (28.653297 + (Math.random() - 0.5) * 0.004).toFixed(6);
+        var lon  = (77.587593 + (Math.random() - 0.5) * 0.004).toFixed(6);
+        var gnssAlt = (alt + (Math.random() - 0.5) * 10).toFixed(1);
+        var sats = Math.round(10 + (Math.random() - 0.5) * 2);
+        var ax   = ((Math.random() - 0.5) * 1.0).toFixed(2);
+        var ay   = ((Math.random() - 0.5) * 1.0).toFixed(2);
+        var spin = (10.0 + (Math.random() - 0.5) * 0.3).toFixed(2);
+        var clk  = mockClock(mockTotalTick);
 
-          var rxLine = 'BU-ASTRO-CAN7,' + clk + ',' + mockPktId + ',' + alt.toFixed(1) + ',' + pres + ',' + temp + ',' + volt + ',' + clk + ',' + lat + ',' + lon + ',' + gnssAlt + ',' + sats + ',' + ax + ',' + ay + ',' + spin + ',0,' + phase.stateIdx + ',NOMINAL';
-          addTerminalLine('RX', rxLine);
-          mockPktId++;
+        var rxLine = '2026-IN-SPACe-CAN-7USAT-066,' + clk + ',' + mockPktId + ',' + alt.toFixed(1) + ',' + pres + ',' + temp + ',' + volt + ',' + clk + ',' + lat + ',' + lon + ',' + gnssAlt + ',' + sats + ',' + ax + ',' + ay + ',' + spin + ',0,' + phase.stateIdx + ',NOMINAL';
+        addTerminalLine('RX', rxLine);
+        mockPktId++;
 
-          for (var e = 0; e < phase.evts.length; e++) {
-            if (phase.evts[e].at === mockTickInPhase) {
-              addTerminalLine('EVT', phase.evts[e].code + ' \u2014 ' + phase.evts[e].desc);
-            }
-          }
-
-          // Update state display to match mock phase
-          setStateDisplay(phase.stateIdx);
-
-          mockTickInPhase++;
-          mockTotalTick++;
-
-          if (mockTickInPhase >= phase.ticks) {
-            mockPhaseIdx++;
-            mockTickInPhase = 0;
-            if (mockPhaseIdx >= MOCK_PHASES.length) {
-              if (LOOP_AFTER_IMPACT) {
-                mockPhaseIdx = 0; mockTickInPhase = 0; mockTotalTick = 0; mockPktId = 1;
-              } else {
-                return; // stop
-              }
-            }
+        for (var e = 0; e < phase.evts.length; e++) {
+          if (phase.evts[e].at === mockTickInPhase) {
+            addTerminalLine('EVT', phase.evts[e].code + ' \u2014 ' + phase.evts[e].desc);
           }
         }
 
-        // Seed a few lines immediately so panel isn't empty on first render
-        for (var seed = 0; seed < 5; seed++) { mockTick(); }
-        setInterval(mockTick, 1000);
-      })();
+        // Update state display to match mock phase
+        setStateDisplay(phase.stateIdx);
+
+        mockTickInPhase++;
+        mockTotalTick++;
+
+        if (mockTickInPhase >= phase.ticks) {
+          mockPhaseIdx++;
+          mockTickInPhase = 0;
+          if (mockPhaseIdx >= MOCK_PHASES.length) {
+            if (LOOP_AFTER_IMPACT) {
+              mockPhaseIdx = 0; mockTickInPhase = 0; mockTotalTick = 0; mockPktId = 1;
+              inPrelaunch = true;
+              prelaunchTick = 1;
+            } else {
+              clearInterval(mockInterval);
+            }
+          }
+        }
+      }
+
+      document.getElementById('btnConnectMock').addEventListener('click', function() {
+        if (isMockRunning) return;
+        isMockRunning = true;
+        this.style.opacity = '0.5';
+        this.innerText = 'CONNECTED';
+        
+        mockInterval = setInterval(mockTick, 1000);
+      });
       // ────────────────────────────────────────────────────────────────────
 
       requestAnimationFrame(rafLoop);

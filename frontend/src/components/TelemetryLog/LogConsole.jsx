@@ -10,6 +10,9 @@ const USE_MOCK_FEED = true;
 function lineType(text) {
   if (text.startsWith('[RX]'))  return 'rx';
   if (text.startsWith('[EVT]')) return 'evt';
+  if (text.startsWith('[TX]'))  return 'tx';
+  if (text.startsWith('[ACK]')) return 'ack';
+  if (text.startsWith('[SYS]')) return 'sys';
   return 'info';
 }
 
@@ -35,12 +38,48 @@ function EvtLine({ text }) {
   );
 }
 
+function TxLine({ text }) {
+  const prefix = text.slice(0, 4);
+  const body = text.slice(4);
+  return (
+    <div className="console__line mock-tx-line">
+      <span className="console__cmd-tx">{prefix}</span>
+      <span className="console__value" style={{ marginLeft: '8px' }}>{body}</span>
+    </div>
+  );
+}
+
+function AckLine({ text }) {
+  const prefix = text.slice(0, 5);
+  const body = text.slice(5);
+  return (
+    <div className="console__line mock-ack-line">
+      <span className="console__cmd-ack">{prefix}</span>
+      <span className="console__value" style={{ marginLeft: '8px' }}>{body}</span>
+    </div>
+  );
+}
+
+function SysLine({ text }) {
+  const prefix = text.slice(0, 5);
+  const body = text.slice(5);
+  return (
+    <div className="console__line mock-sys-line">
+      <span className="console__time">{prefix}</span>
+      <span className="console__value" style={{ marginLeft: '8px', color: '#ccc', fontStyle: 'italic' }}>{body}</span>
+    </div>
+  );
+}
+
 function MockFlightLines({ lines }) {
   return (
     <>
       {lines.map((text, i) => {
         const type = lineType(text);
         if (type === 'evt') return <EvtLine key={i} text={text} />;
+        if (type === 'tx') return <TxLine key={i} text={text} />;
+        if (type === 'ack') return <AckLine key={i} text={text} />;
+        if (type === 'sys') return <SysLine key={i} text={text} />;
         return <RxLine key={i} text={text} />;
       })}
     </>
@@ -68,7 +107,7 @@ export default function LogConsole() {
   // Mock feed — always active when USE_MOCK_FEED = true.
   // Set USE_MOCK_FEED = false at the top of this file to fall back to the
   // real serial/WS packet path (packetHistory).
-  const mockLines = useMockTelemetryFeed(USE_MOCK_FEED);
+  const { lines: mockLines, start: startMock, isRunning: isMockRunning } = useMockTelemetryFeed(USE_MOCK_FEED);
 
 
   // Real-data lines (legacy path, unchanged logic)
@@ -121,6 +160,17 @@ export default function LogConsole() {
             </button>
           </div>
           <div className="telemetry-tabs__controls">
+            {USE_MOCK_FEED && (
+              <button
+                type="button"
+                className="telemetry-tabs__scroll-btn"
+                onClick={startMock}
+                disabled={isMockRunning}
+                style={{ marginRight: '8px', opacity: isMockRunning ? 0.8 : 1 }}
+              >
+                {isMockRunning ? '● LIVE' : '▶ CONNECT'}
+              </button>
+            )}
             <div className="telemetry-tabs__cadence">
               <span className={`telemetry-tabs__heartbeat ${isCadenceStable ? 'telemetry-tabs__heartbeat--stable' : 'telemetry-tabs__heartbeat--unstable'}`}></span>
               <span className="telemetry-tabs__cadence-text">Cadence: {(cadenceMs / 1000).toFixed(2)}s ({isCadenceStable ? 'Stable' : 'Drift'})</span>
